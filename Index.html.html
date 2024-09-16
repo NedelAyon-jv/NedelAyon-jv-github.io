@@ -1,0 +1,450 @@
+<!-- Contar el tiempo a partir de la carga del juego.
+Tener una temática original. LISTO
+El juego debe de contener enemigos en ello 
+Debe ser original (es decir no copia de un compañero).
+Debe de contar con las frutas que aparecen de manera aleatoria. Listo 
+Debe tener sonidos al realizar ciertas acciones: http://sonidosmp3gratis.com/
+Debe tener música ambiental.  LISTO -->
+
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Juego con Pausa</title>
+    <style type="text/css">
+        body {
+            background-color: rgb(0, 0, 0);
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="canvas" width="1500px" height="1500px"></canvas>
+ <div id="instructions">
+        <h2>Instrucciones del juego</h2>
+        <p>Usa las teclas <strong>W</strong> para moverte hacia arriba, <strong>A</strong> para la izquierda, <strong>S</strong> para abajo y <strong>D</strong> para la derecha.</p>
+        <p>Presiona <strong>Escape</strong> para pausar o reanudar el juego.</p>
+        <p>¡Recolecta todas las frutas mientras evitas a los fantasmas!</p>
+        <p>Para reiniciar la partida, presiona <strong>F5</strong>.</p>
+    </div>
+ 
+    <script type="text/javascript">
+
+        
+        const myCanvas = document.getElementById("canvas");
+        const ctx = myCanvas.getContext("2d");
+
+        var adelanto = 450;
+        var retroceso = 650;
+        var direction = "";
+        var lastDirection = "";
+        var startTime = 0;
+        var hasMoved = false;
+        var elapsedTime = 0;
+        var speed = 6;
+        var score = 0;
+        var paused = false;
+        const musica = new Audio("sounds/Soundtrack.mp3");
+        
+
+        //Imagen pokemon 
+        const img = new Image();
+        img.src = 'Pokemon1.png';
+        //Imagen baya
+        const img2 = new Image();
+        img2.src = 'Baya.png';
+        //Imagen fantasma/pokebola
+        const img3 = new Image();
+        img3.src = 'Pokebola.png'
+        //Soundtrack
+        musica.volume = 0.3;  // Volumen soundtrack 0.3 preff
+        //musica.loop = false;
+
+        //const musicaClone = musica.cloneNode();
+        //musicaClone.play();
+        musica.play();
+        //Sonido de cuando toca una fruta
+        const fruta = new Audio('sounds/Waka.mp3');
+        fruta.loop = false;
+        //Sonido de captura 
+        const captura= new Audio('sounds/Captura.mp3');
+        captura.loop = false;
+
+        var nextLevel = 25; 
+
+        // Mapaa
+        const walls = [
+            //Bordes
+            //Arriba
+            { x: 20, y: 20, width: 930, height: 30 },
+            //Abajo 
+            { x: 20, y: 950, width: 930, height: 30 },
+
+            //Izquierda abajo
+            { x: 20, y: 600, width: 30, height: 350 },
+            //izquierda arriba
+            { x: 20, y: 20, width: 30, height: 350 },
+
+            //derecha arriba 
+            { x: 930, y: 20, width: 30, height: 350 },
+            //Derecha abajo
+            { x: 920, y: 600, width: 30, height: 350 },
+
+
+            //pilares
+            //Izquierda 
+            { x: 200, y: 400, width: 30, height: 250 },
+            //derecha 
+            { x: 720, y: 400, width: 30, height: 250 },
+
+
+            //Inicio 
+            { x: 300, y: 700, width: 350, height: 30 },
+            //Incio arriba 
+            { x: 300, y: 600, width: 350, height: 30 },
+
+            //Inicio fantasmas
+            { x: 300, y: 400, width: 120, height: 30 },
+            { x: 550, y: 400, width: 110, height: 30 },
+
+            //Izquierda
+            { x: 300, y: 400, width: 30, height: 220 },
+            //derecha
+            { x: 630, y: 400, width: 30, height: 230 },
+
+            //Parte superior izquierda
+            { x: 250, y: 110, width: 200, height: 30 },
+            { x: 150, y: 240, width: 150, height: 30 },
+            { x: 150, y: 110, width: 30, height: 140 },
+
+            //Parte superior en medio 
+            { x: 380, y: 210, width: 180, height: 30 },
+            { x: 460, y: 210, width: 30, height: 80 },
+
+            //Parte superior derecha 
+            { x: 550, y: 110, width: 200, height: 30 },
+            { x: 650, y: 240, width: 200, height: 30 },
+            { x: 820, y: 110, width: 30, height: 140 },
+
+            //Parte inferior izquierda
+            { x: 120, y: 780, width: 100, height: 100 },
+
+            //Parte inferior en medio
+            { x: 350, y: 800, width: 320, height: 30 },
+            { x: 460, y: 800, width: 30, height: 80 },
+
+            //Parte inferior derecha 
+            { x: 750, y: 780, width: 100, height: 100 },
+
+
+
+
+            //   { x: 20, y: 400, width: 300, height: 30 },
+            // { x: 250, y: 110, width: 300, height: 30 },
+            // { x: 20, y: 700, width: 300, height: 30 }
+        ];
+        function getRandomPosition() {
+            let position;
+            let collisionDetected;
+
+            do {
+                position = {
+                    x: Math.random() * (myCanvas.width - 600),
+                    y: Math.random() * (myCanvas.height - 600)
+                };
+
+
+                collisionDetected = walls.some(wall =>
+                    position.x < wall.x + wall.width &&
+                    position.x + 30 > wall.x &&
+                    position.y < wall.y + wall.height &&
+                    position.y + 30 > wall.y
+                );
+
+            } while (collisionDetected);
+
+            return position;
+        }
+
+
+        const frutas = [];
+        //Cantidad de bayas yo pondre 25 por mientras
+        for (let i = 0; i < 25; i++) {
+            frutas.push(getRandomPosition());
+        }
+
+        function detectFruitCollision(fruitX, fruitY) {
+            return (
+                adelanto < fruitX + 15 &&
+                adelanto + 50 > fruitX &&
+                retroceso < fruitY + 15 &&
+                retroceso + 50 > fruitY
+            );
+        }
+
+        function detectCollision(newx, newy) {
+            return walls.some(wall =>
+                newx < wall.x + wall.width &&
+                newx + 50 > wall.x &&
+                newy < wall.y + wall.height &&
+                newy + 50 > wall.y
+            );
+        }
+
+        function detectCuadrito(adelanto, retroceso, Cuadritox, Cuadritoy) {
+            return (
+                adelanto < Cuadritox + 20 &&
+                adelanto + 50 > Cuadritox &&
+                retroceso < Cuadritoy + 20 &&
+                retroceso + 50 > Cuadritoy
+            );
+        }
+
+        const enemies = [
+            { x: 300, y: 300, width: 30, height: 30, direction: "right", speed: 5 },
+            { x: 500, y: 400, width: 30, height: 30, direction: "down", speed: 5 },
+            { x: 70, y: 400, width: 30, height: 30, direction: "down", speed: 5 },
+            { x: 800, y: 400, width: 30, height: 30, direction: "down", speed: 5 },
+            { x: 500, y: 750, width: 30, height: 30, direction: "right", speed: 5 },
+            { x: 500, y: 60, width: 30, height: 30, direction: "right", speed: 5 },
+
+        ];
+
+        function moveEnemies() {
+            enemies.forEach(enemy => {
+                let newx = enemy.x;
+                let newy = enemy.y;
+
+                switch (enemy.direction) {
+                    case "right":
+                        newx += enemy.speed;
+                        if (detectCollision(newx, newy)) {
+                            enemy.direction = "left";
+                        }
+                        break;
+                    case "left":
+                        newx -= enemy.speed;
+                        if (detectCollision(newx, newy)) {
+                            enemy.direction = "right";
+                        }
+                        break;
+                    case "down":
+                        newy += enemy.speed;
+                        if (detectCollision(newx, newy)) {
+                            enemy.direction = "up";
+                        }
+                        break;
+                    case "up":
+                        newy -= enemy.speed;
+                        if (detectCollision(newx, newy)) {
+                            enemy.direction = "down";
+                        }
+                        break;
+                }
+
+                enemy.x = newx;
+                enemy.y = newy;
+            });
+        }
+
+        function checkEnemyCollision() {
+            //return enemies.some(enemy => detectCuadrito(adelanto, retroceso, enemy.x, enemy.y));
+            //const hasCollided = nemies.some()
+            const hasCollided = enemies.some(enemy => detectCuadrito(adelanto, retroceso, enemy.x, enemy.y));
+
+            if(hasCollided){
+                captura.play();
+            }
+
+            return hasCollided;
+            /* const frutaClone = fruta.cloneNode();
+            frutaClone.play(); */
+        }
+
+        function nextLevelSpeeds(){
+            if (score >= nextLevel){
+                speed += 1; 
+                
+                enemies.forEach(enemy => {
+                    enemy.speed += 2;
+                });
+
+                nextLevel += 5; 
+            }
+            
+        }
+
+
+        function update() {
+            musica.play();
+            if (!paused) {
+                switch (direction) {
+                    case "up":
+                        if (!detectCollision(adelanto, retroceso - speed)) {
+                            retroceso -= speed;
+                        }
+                        if (retroceso <= 0) {
+                            retroceso = 950;
+                        }
+                        break;
+                    case "down":
+                        if (!detectCollision(adelanto, retroceso + speed)) {
+                            retroceso += speed;
+                        }
+                        if (retroceso >= 950) {
+                            retroceso = 0;
+                        }
+                        break;
+                    case "left":
+                        if (!detectCollision(adelanto - speed, retroceso)) {
+                            adelanto -= speed;
+                        }
+                        if (adelanto <= 0) {
+                            adelanto = 950;
+                        }
+                        break;
+                    case "right":
+                        if (!detectCollision(adelanto + speed, retroceso)) {
+                            adelanto += speed;
+                        }
+                        if (adelanto >= 950) {
+                            adelanto = 0;
+                        }
+                        break;
+                }
+                // Sonido de cuando toca una fruta
+
+                frutas.forEach((frutaItem, index) => {
+                    if (detectFruitCollision(frutaItem.x, frutaItem.y)) {
+                        frutas.splice(index, 1);
+                        score++;
+                        const frutaClone = fruta.cloneNode();
+                        frutaClone.play();
+                        const newPosition = getRandomPosition();
+                        frutas.push(newPosition);
+                    }
+                });
+
+
+                if (!hasMoved && direction !== "") {
+                    hasMoved = true;
+                    startTime = performance.now();
+                }
+                moveEnemies();
+
+                if (checkEnemyCollision()) {
+                    alert("Te ha capturado una pokebola, Tu puntuación es: " + score);
+                    paused = true;
+                }
+            }
+        }
+
+        function paint() {
+            ctx.clearRect(0, 0, myCanvas.width, myCanvas.height);
+
+            // Score
+            ctx.font = "40px Arial";
+            ctx.fillStyle = "white";
+            ctx.fillText("Score: " + score, myCanvas.width - 450, 50);
+            // Temporizador
+            if (hasMoved) {
+                elapsedTime = ((performance.now() - startTime) / 1000).toFixed(1);
+                ctx.fillText("Time: " + elapsedTime + "s", myCanvas.width - 450, 100);
+            }
+
+
+            // Cuadro verde
+            //ctx.fillStyle = "green";
+            //ctx.fillRect(adelanto, retroceso, 40, 40);
+
+            ctx.drawImage(img, adelanto, retroceso, 40, 40);
+
+            // Cuadro negro
+            /*  ctx.fillStyle = "yellow";
+             ctx.fillRect(Cuadritox, Cuadritoy, 15, 15); */
+            ctx.fillStyle = "red";
+            frutas.forEach(fruta => {
+                //ctx.fillRect(fruta.x, fruta.y, 30, 30); // Aumentamos el tamaño a 30x30 para que sean visibles
+                ctx.drawImage(img2, fruta.x, fruta.y, 30, 30);
+            });
+            ctx.fillStyle = "blue";
+            walls.forEach(wall => {
+                ctx.fillRect(wall.x, wall.y, wall.width, wall.height);
+            });
+
+            ctx.fillStyle = "gray";
+            enemies.forEach(enemy => {
+                //ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+                ctx.drawImage(img3, enemy.x, enemy.y, enemy.width, enemy.height);
+            });
+
+            //Pausa
+            if (paused) {
+                ctx.fillStyle = "rgba(128, 128, 128, 0.7)";
+                ctx.fillRect(0, 0, myCanvas.width, myCanvas.height);
+
+                ctx.font = "50px Arial";
+                ctx.fillStyle = "white";
+                ctx.fillText("Pausa", myCanvas.width / 2 - 100, myCanvas.height / 2);
+                ctx.fillText("F5 PARA REINICIAR LA RUN ", myCanvas.width / 2 - 200, myCanvas.height / 4)
+            }
+
+            update();
+            requestAnimationFrame(paint);
+        }
+
+
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") {
+                paused = !paused;
+                if (!paused) {
+                    direction = lastDirection;
+                }
+            }
+            if (!paused) {
+                switch (event.key) {
+                    case "w":
+                    case "W":
+                        direction = "up";
+                        lastDirection = "up";
+                        break;
+                    case "s":
+                    case "S":
+                        direction = "down";
+                        lastDirection = "down";
+                        break;
+                    case "a":
+                    case "A":
+                        direction = "left";
+                        lastDirection = "left";
+                        break;
+                    case "d":
+                    case "D":
+                        direction = "right";
+                        lastDirection = "right";
+                        break;
+                    /*  case "p":
+                     case "P":
+                         speed += 2.5;
+                         break; */
+                }
+            }
+        });
+
+        paint();
+
+        window.requestAnimationFrame = (function () {
+            return window.requestAnimationFrame ||
+                window.webkitRequestAnimationFrame ||
+                window.mozRequestAnimationFrame ||
+                function (callback) {
+                    window.setTimeout(callback, 17);
+                };
+        }());
+    </script>
+</body>
+        
+</html>
